@@ -87,7 +87,7 @@ int __cdecl main(void)
 			printf("listen failed with error: %d\n", WSAGetLastError());
 			closesocket(ListenSocket);
 			WSACleanup();
-			return 1;
+			//return 1;
 		}
 
 		SOCKADDR_IN addr;
@@ -99,7 +99,7 @@ int __cdecl main(void)
 			printf("accept failed with error: %d\n", WSAGetLastError());
 			closesocket(ListenSocket);
 			WSACleanup();
-			return 1;
+			//return 1;
 		}
 
 		char * client_ip = inet_ntoa(addr.sin_addr);
@@ -146,24 +146,25 @@ int ClientThread(SOCKET ClientSocket)
 			printf("Connection closing...\n");
 		else {
 			printf("recv failed with error: %d\n", WSAGetLastError());
-			closesocket(ClientSocket);
-			WSACleanup();
-			return 1;
+			//closesocket(ClientSocket);
+			//WSACleanup();
+			//return 1;
 		}
 
 	} while (iResult > 0);
-
+	
 	// shutdown the connection since we're done
 	iResult = shutdown(ClientSocket, SD_SEND);
 	if (iResult == SOCKET_ERROR) {
 		printf("shutdown failed with error: %d\n", WSAGetLastError());
 		closesocket(ClientSocket);
 		WSACleanup();
-		return 1;
+		//return 1;
 	}
 
 	// cleanup
 	closesocket(ClientSocket);
+	printf("Connection closed with %d\n", ClientSocket);
 	return 0;
 }
 
@@ -201,11 +202,11 @@ void HandleBuffer(char * buf, int size, SOCKET ClientSocket)
 		HandlePing(dataHeader, ClientSocket);
 		break;
 	default:
-		// no such action
+		// no such action5
 		// error
 		break;
 	}
 
 
 
-}
+} 
