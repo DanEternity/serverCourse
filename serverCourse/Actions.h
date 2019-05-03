@@ -2,7 +2,7 @@
 
 enum Actions
 {
-	action_ping,
+	action_ping = 0,
 	action_ping_response,
 
 
