@@ -9,19 +9,27 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <thread>
+#include <vector>
+#include "Util.h"
+#include "dbModule.h"
 
 #include "Actions.h"
 #include "Handlers.h"
 
 // Need to link with Ws2_32.lib
 #pragma comment (lib, "Ws2_32.lib")
+//#pragma comment (lib, "sqlite3.dll")
 // #pragma comment (lib, "Mswsock.lib")
 
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT "27015"
+#define DEFAULT_BUFF_TIME 10000
 
 int ClientThread(SOCKET ClientSocket);
-void HandleBuffer(char * buf, int size, SOCKET ClientSocket);
+void HandleBuffer(std::vector<char> buf, SOCKET ClientSocket);
+int AddToQueue(std::vector<char> rBuff, std::vector<std::pair<int, std::vector<std::vector<char>>>> &bf, std::vector<std::pair<int, int>> &status);
+int CheckBufferStatus(std::vector<std::pair<int, std::vector<std::vector<char>>>> &bf, std::vector<std::pair<int, int>> &status);
+int ClearBuffer(std::vector<std::pair<int, std::vector<std::vector<char>>>> &bf, std::vector<std::pair<int, int>> &status);
 
 int __cdecl main(void)
 {
@@ -44,6 +52,10 @@ int __cdecl main(void)
 		printf("WSAStartup failed with error: %d\n", iResult);
 		return 1;
 	}
+
+	initDB("main.db");
+
+	Test();
 
 	ZeroMemory(&hints, sizeof(hints));
 	hints.ai_family = AF_INET;
@@ -115,6 +127,9 @@ int __cdecl main(void)
 	// cleanup
 	WSACleanup();
 
+	//db shutdown
+	closeDB();
+
 	system("PAUSE");
 	return 0;
 }
@@ -129,6 +144,15 @@ int ClientThread(SOCKET ClientSocket)
 	char recvbuf[DEFAULT_BUFLEN];
 	int recvbuflen = DEFAULT_BUFLEN;
 
+	std::vector<std::pair<int, std::vector<std::vector<char>>>> que;
+	std::vector<std::pair<int, int>> status;
+	DWORD nonBlocking = 1;
+	if (ioctlsocket(ClientSocket, FIONBIO, &nonBlocking) != 0)
+	{
+		printf("failed to set non-blocking socket\n");
+		return false;
+	}
+
 	// Receive until the peer shuts down the connection
 	do {
 
@@ -138,14 +162,41 @@ int ClientThread(SOCKET ClientSocket)
 			printf("%.*s\n", iResult, recvbuf);
 
 			// Handle buffer
+			if (iResult != 512)
+				continue;
+			
+			std::vector<char> rBuff(512);
+			memcpy(&rBuff[0], recvbuf, 512);
 
-			HandleBuffer(recvbuf, iResult, ClientSocket); // data / size / socket
+			AddToQueue(rBuff, que, status);
+
+			//HandleBuffer(recvbuf, iResult, ClientSocket); // data / size / socket
 
 		}
 		else if (iResult == 0)
 			printf("Connection closing...\n");
 		else {
-			printf("recv failed with error: %d\n", WSAGetLastError());
+			auto err = WSAGetLastError();
+			if (err == 10035)
+			{
+
+				int id = CheckBufferStatus(que, status);
+				if (id != -1)
+				{
+					std::vector<char> buff;
+					buff = BuffToRaw(que[id].second);
+
+					HandleBuffer(buff, ClientSocket);
+
+					
+				}
+
+
+				ClearBuffer(que, status);
+				iResult = 1;
+				continue;
+			}
+			printf("recv failed with error: %d\n", err);
 			//closesocket(ClientSocket);
 			//WSACleanup();
 			//return 1;
@@ -168,7 +219,7 @@ int ClientThread(SOCKET ClientSocket)
 	return 0;
 }
 
-void HandleBuffer(char * buf, int size, SOCKET ClientSocket)
+void HandleBuffer(std::vector<char> buf, SOCKET ClientSocket)
 {
 	/* Buffer format */
 	/*
@@ -179,12 +230,12 @@ void HandleBuffer(char * buf, int size, SOCKET ClientSocket)
 		ParametersCount
 		<params>
 	*/
-
+	
 	DataFormat dataHeader;
 
-	if (size < sizeof(__int64) + sizeof(Actions) + sizeof(int) + sizeof(int))
+	if (buf.size() < sizeof(__int64) + sizeof(Actions) + sizeof(int) + sizeof(int))
 	{
-		printf("Error! Size of packet was %d\n", size);
+		printf("Error! Size of packet was %d\n", buf.size());
 
 		// need to answer with @ErrorResponse@
 
@@ -206,7 +257,87 @@ void HandleBuffer(char * buf, int size, SOCKET ClientSocket)
 		// error
 		break;
 	}
-
+	
 
 
 } 
+
+int AddToQueue(std::vector<char> rBuff, std::vector<std::pair<int, std::vector<std::vector<char>>>> &bf, std::vector<std::pair<int, int>> &status)
+{
+	int bufId;
+	memcpy(&bufId, &rBuff[12], sizeof(int));
+	bool found = false;
+	for (int i(0); i < bf.size(); i++)
+	{
+		if (bufId == bf[i].first)
+		{
+			//std::vector<char> t;
+			//t.resize(DEFAULT_BUFLEN);
+			//memcpy(rBuff[0], &t[0], DEFAULT_BUFLEN);
+			bf[i].second.push_back(rBuff);
+			return 0;
+		}
+	}
+
+	std::pair<int, std::vector<std::vector<char>>> elem;
+
+	elem.first = bufId;
+	//std::vector<char> t;
+	//t.resize(DEFAULT_BUFLEN);
+	//memcpy(recvbuf, &t[0], DEFAULT_BUFLEN);
+	elem.second.push_back(rBuff);
+	bf.push_back(elem);
+	status.push_back(std::make_pair(0, 0));
+
+	return 0;
+}
+
+int CheckBufferStatus(std::vector<std::pair<int, std::vector<std::vector<char>>>> &bf, std::vector<std::pair<int, int>> &status)
+{
+
+	for (int i(0); i < bf.size(); i++)
+	{
+		int size;
+		memcpy(&size, &bf[i].second[0][4], sizeof(int));
+		std::vector<bool> parts(size, false);
+		for (int j(0); j < bf[i].second.size(); j++)
+		{
+			int num;
+			memcpy(&num, &bf[i].second[j][8], sizeof(int));
+			parts[num] = true;
+		}
+
+		bool ready = true;
+
+		for (int j(0); j<parts.size(); j++)
+			if (parts[j] == false)
+			{
+				status[i].first++;
+				ready = false;
+				break;
+			}
+
+		if (ready)
+		{
+			status[i].first = DEFAULT_BUFF_TIME + 1;
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+int ClearBuffer(std::vector<std::pair<int, std::vector<std::vector<char>>>> &bf, std::vector<std::pair<int, int>> &status)
+{
+	for (int i(0); i < bf.size(); i++)
+	{
+		if (status[i].first > DEFAULT_BUFF_TIME)
+		{
+			bf.erase(bf.begin() + i);
+			status.erase(status.begin() + i);
+			i--;
+		}
+	}
+
+	return 0;
+}
