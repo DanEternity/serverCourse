@@ -55,7 +55,7 @@ int __cdecl main(void)
 
 	initDB("main.db");
 
-	Test();
+	Test(); // test
 
 	ZeroMemory(&hints, sizeof(hints));
 	hints.ai_family = AF_INET;
@@ -219,6 +219,19 @@ int ClientThread(SOCKET ClientSocket)
 	return 0;
 }
 
+int SendToClient(char * buffer, int size, SOCKET socket, int &PacketID)
+{
+	/**/
+	std::vector<std::vector<char>> r = RawToBuff(buffer, size, ++PacketID);
+
+	for (int i(0); i < r.size(); i++)
+	{
+		char * q = &r[i][0];
+		send(socket, q, 512, 0);
+	}
+	return 0;
+}
+
 void HandleBuffer(std::vector<char> buf, SOCKET ClientSocket)
 {
 	/* Buffer format */
@@ -230,7 +243,14 @@ void HandleBuffer(std::vector<char> buf, SOCKET ClientSocket)
 		ParametersCount
 		<params>
 	*/
-	
+
+	/*  */
+	/*
+	int pacID = rand() % 2000000;
+	SendToClient("sadasdasdasda", 14, ClientSocket, pacID);
+	return;
+	*/
+	/*  */
 	DataFormat dataHeader;
 
 	if (buf.size() < sizeof(__int64) + sizeof(Actions) + sizeof(int) + sizeof(int))
