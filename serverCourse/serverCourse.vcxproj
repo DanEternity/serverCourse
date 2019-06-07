@@ -157,6 +157,7 @@
     <ClInclude Include="dbModule.h" />
     <ClInclude Include="dbValues.h" />
     <ClInclude Include="Handlers.h" />
+    <ClInclude Include="Network.h" />
     <ClInclude Include="SQLite3.h" />
     <ClInclude Include="Util.h" />
   </ItemGroup>
