@@ -7,7 +7,8 @@ enum Actions
 	action_auth,
 	action_auth_fail,
 	action_auth_success,
-
+	action_conf_user,
+	action_conf_user_responce,
 };
 
 struct DataFormat

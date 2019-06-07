@@ -69,10 +69,66 @@ static int callback2(void *NotUsed, int argc, char **argv, char **azColName)
 	return 0;
 }
 
+static int callbackAccount(void *NotUsed, int argc, char **argv, char **azColName)
+{
+	ContentAccount * q = new ContentAccount();
+	int i;
+	for (i = 0; i < argc; i++)
+	{
+		switch (azColName[i][0])
+		{
+		case 'L':
+			q->login = argv[i];
+			break;
+		case 'P':
+			q->password = argv[i];
+			break;
+		case 'i':
+			q->id = std::atoi(argv[i]);
+			break;
+		case 'A':
+			q->accType = std::atoi(argv[i]);
+			break;
+		default:
+			break;
+		}
+
+	}
+
+	resultBuffer.push_back(static_cast<ContentBase*>(q));
+	return 0;
+}
+
+static int callbackConference(void *NotUsed, int argc, char **argv, char **azColName)
+{
+	ContentConference * q = new ContentConference();
+	int i;
+	for (i = 0; i < argc; i++)
+	{
+		switch (azColName[i][0])
+		{
+		case 'N':
+			q->name = argv[i];
+			break;
+		case 'i':
+			q->id = std::atoi(argv[i]);
+			break;
+		default:
+			break;
+		}
+
+	}
+
+	resultBuffer.push_back(static_cast<ContentBase*>(q));
+	return 0;
+}
+
 enum DBCallbackFunc
 {
 	DBCallbackFunc_Test = 0,
 	DBCallbackFunc_Scientist,
+	DBCallbackFunc_Account,
+	DBCallbackFunc_Conference,
 };
 
 void ExecSQL(std::string sqlString, DBCallbackFunc func)
@@ -90,6 +146,14 @@ void ExecSQL(std::string sqlString, DBCallbackFunc func)
 	case DBCallbackFunc_Scientist:
 		resultBuffer.clear();
 		result = sqlite3_exec(dataBase, sqlString.c_str(), callback2, 0, &zErrMsg);
+		break;
+	case DBCallbackFunc_Account:
+		resultBuffer.clear();
+		result = sqlite3_exec(dataBase, sqlString.c_str(), callbackAccount, 0, &zErrMsg);
+		break;
+	case DBCallbackFunc_Conference:
+		resultBuffer.clear();
+		result = sqlite3_exec(dataBase, sqlString.c_str(), callbackConference, 0, &zErrMsg);
 		break;
 	default:
 		result = -1; // fail

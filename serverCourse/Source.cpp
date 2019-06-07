@@ -265,6 +265,10 @@ void HandleBuffer(std::vector<char> buf, SOCKET ClientSocket, int &PacketID)
 		break;
 	case action_auth:
 		HandleAuth(dataHeader, ClientSocket, buf, PacketID);
+		break;
+	case action_conf_user:
+		HandleUserConferenceList(dataHeader, ClientSocket, PacketID);
+		break;
 	default:
 		// no such action5
 		// error
