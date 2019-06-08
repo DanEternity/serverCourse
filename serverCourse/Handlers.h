@@ -9,8 +9,9 @@
 #include "Actions.h"
 #include "Network.h"
 #include "dbModule.h"
+#include "BufferHelp.h"
 
-void HandlePing(DataFormat data, SOCKET ClientSocket, int &PacketID)
+void HandlePing(DataFormat data, SOCKET ClientSocket, int &PacketID, AccEnviroment &Env)
 {
 	char buf[512] = "";
 
@@ -26,7 +27,7 @@ void HandlePing(DataFormat data, SOCKET ClientSocket, int &PacketID)
 	send(ClientSocket, buf, sizeof(int) + sizeof(__int64) + sizeof(int) + sizeof(int), 0);
 }
 
-void HandleAuth(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int &PacketID)
+void HandleAuth(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int &PacketID, AccEnviroment &Env)
 {
 
 	int login_start;
@@ -66,7 +67,11 @@ void HandleAuth(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int
 		ContentAccount * a = static_cast<ContentAccount*>(resultBuffer[0]);
 		data.Account = a->id;
 		data.ActionID = action_auth_success;
-		
+		/* Env setup */
+		Env.id = a->id;
+		Env.accType = a->accType;
+
+		/* */
 		memcpy(&buf[0], &data.Account, sizeof(__int64));
 		memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
 		memcpy(&buf[0 + off_q], &a->accType, sizeof(int));
@@ -86,12 +91,18 @@ void HandleAuth(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int
 
 }
 
-void HandleUserConferenceList(DataFormat data, SOCKET ClientSocket, int &PacketID)
+void HandleUserConferenceList(DataFormat data, SOCKET ClientSocket, int &PacketID, AccEnviroment &Env)
 {
 
 	int id = data.Account;
 
-	std::string sqlText = "SELECT * FROM Conference, Participation WHERE Conference.id = Participation.idConference AND Participation.idScientist = \'";
+	//std::string 
+	std::string sqlText;
+	if (Env.accType == 1)
+		sqlText = "SELECT Conference.id, Conference.Name FROM Conference, Participation WHERE Conference.id = Participation.idConference AND Participation.idScientist = \'";
+	else
+		sqlText = "SELECT Conference.id, Conference.Name FROM Conference, Admin WHERE Conference.Admin = Admin.id AND Admin.Account = \'";
+
 	char c[20] = "";
 	_itoa_s(id, c, 10);
 	int i = 0;
@@ -123,4 +134,671 @@ void HandleUserConferenceList(DataFormat data, SOCKET ClientSocket, int &PacketI
 	SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
 
 	resultBuffer.clear();
+}
+
+void HandleConferenceFullInfo(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int &PacketID, AccEnviroment &Env)
+{
+	std::string sqlText = "";
+	sqlText += "SELECT Conference.id, Conference.Name, ";
+	sqlText += "Conference.Date, Conference.Theme, ";
+	sqlText += "Conference.City, Conference.Description, ";
+	sqlText += "Conference.Admin, City.Name as CName, ";
+	sqlText += "Theme.Name as TName ";
+	sqlText += "FROM Conference, City, Theme ";
+	sqlText += "WHERE Conference.Theme = Theme.id AND ";
+	sqlText += "Conference.City = City.id AND ";
+	sqlText += "Conference.id = \'";
+
+	int confId;
+	memcpy(&confId, &buf[20], sizeof(int));
+
+	char t[20] = "";
+	_itoa_s(confId, t, 10);
+
+	for (int i(0); i < strlen(t); i++) sqlText += t[i];
+	sqlText += "\'";
+	
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+
+	ExecSQL(sqlText, DBCallbackFunc_ConferenceFull);
+	if (resultBuffer.empty())
+	{
+		data.ActionID = action_error;
+		memcpy(&buf[0], &data.Account, sizeof(__int64));
+		memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+		SendToClient(&buf[0], 24, ClientSocket, PacketID);
+		return;
+	}
+
+	buf.clear();
+	buf.assign(24, 0);
+	data.ActionID = action_conf_full_info_response;
+	memcpy(&buf[0], &data.Account, sizeof(__int64));
+	memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+	int sz = resultBuffer.size();
+	memcpy(&buf[20], &sz, sizeof(int));
+	int offset = 24;
+	for (int i(0); i < resultBuffer.size(); i++)
+	{
+		ContentConference * q = static_cast<ContentConference*>(resultBuffer[i]);
+		addInt(buf, q->id, offset);
+		addString(buf, q->name, offset);
+		addString(buf, q->date, offset);
+		addInt(buf, q->themeID, offset);
+		addInt(buf, q->cityID, offset);
+		addString(buf, q->description, offset);
+		addInt(buf, q->adminID, offset);
+		addString(buf, q->cityName, offset);
+		addString(buf, q->themeName, offset);
+
+		delete q;
+	}
+
+	resultBuffer.clear();
+
+	printf("debug: ");
+	for (int i(0); i < buf.size(); i++) printf("%c", buf[i]);
+	printf("\n");
+
+	SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+	resultBuffer.clear();
+}
+
+void HandleConferenceMembers(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int &PacketID, AccEnviroment &Env)
+{
+	std::string sqlText = "";
+	sqlText += "SELECT Scientist.Surname, Scientist.Name, Scientist.id ";
+	sqlText += "FROM Scientist, Participation ";
+	sqlText += "WHERE Scientist.id = Participation.idScientist AND ";
+	sqlText += "Participation.idConference = \'";
+
+	int confId;
+	memcpy(&confId, &buf[20], sizeof(int));
+
+	char t[20] = "";
+	_itoa_s(confId, t, 10);
+
+	for (int i(0); i < strlen(t); i++) sqlText += t[i];
+	sqlText += "\'";
+
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+
+	ExecSQL(sqlText, DBCallbackFunc_Scientist);
+
+	buf.clear();
+	buf.assign(24, 0);
+	data.ActionID = action_get_conf_members_response;
+	memcpy(&buf[0], &data.Account, sizeof(__int64));
+	memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+	int sz = resultBuffer.size();
+	memcpy(&buf[20], &sz, sizeof(int));
+	int offset = 24;
+	for (int i(0); i < resultBuffer.size(); i++)
+	{
+		ContentScientist * q = static_cast<ContentScientist*>(resultBuffer[i]);
+		addInt(buf, q->id, offset);
+		addString(buf, q->surname, offset);
+		addString(buf, q->name, offset);
+
+		delete q;
+	}
+
+	resultBuffer.clear();
+
+	printf("debug: ");
+	for (int i(0); i < buf.size(); i++) printf("%c", buf[i]);
+	printf("\n");
+
+	SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+	resultBuffer.clear();
+
+}
+
+void HandleUpdateConfInfo(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int &PacketID, AccEnviroment &Env)
+{
+	
+	if (Env.accType != 2)
+	{
+		data.ActionID = action_error;
+		memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+	}
+
+	int offset = 20;
+	int size;
+
+	readInt(buf, size, offset);
+
+	ContentConference * q = new ContentConference();
+	readInt(buf, q->id, offset);
+	readString(buf, q->name, offset);
+	readString(buf, q->date, offset);
+	readInt(buf, q->themeID, offset);
+	readInt(buf, q->cityID, offset);
+	readString(buf, q->description, offset);
+	readInt(buf, q->adminID, offset);
+	readString(buf, q->cityName, offset);
+	readString(buf, q->themeName, offset);
+
+	std::string sqlText = "";
+
+	/*GET CITY*/
+
+	sqlText += "SELECT City.id FROM City WHERE City.Name = \'";
+	for (char w : q->cityName) sqlText += w;
+	sqlText += "\'";
+
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+
+	ExecSQL(sqlText, DBCallbackFunc_Scientist);
+
+	if (resultBuffer.empty())
+	{
+		buf.clear();
+		buf.assign(24, 0);
+		data.ActionID = action_error;
+		memcpy(&buf[0], &data.Account, sizeof(__int64));
+		memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+		SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+		return;
+	}
+
+	ContentScientist * tmp = static_cast<ContentScientist*>(resultBuffer[0]);
+	q->cityID = tmp->id;
+	delete(tmp);
+	resultBuffer.clear();
+	sqlText = "";
+	
+	/*GET THEME*/
+
+	sqlText += "SELECT Theme.id FROM Theme WHERE Theme.Name = \'";
+	for (char w : q->themeName) sqlText += w;
+	sqlText += "\'";
+
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+	ExecSQL(sqlText, DBCallbackFunc_Scientist);
+
+	if (resultBuffer.empty())
+	{
+		buf.clear();
+		buf.assign(24, 0);
+		data.ActionID = action_error;
+		memcpy(&buf[0], &data.Account, sizeof(__int64));
+		memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+		SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+		return;
+	}
+
+	tmp = static_cast<ContentScientist*>(resultBuffer[0]);
+	q->themeID = tmp->id;
+	delete(tmp);
+	resultBuffer.clear();
+	sqlText = "";
+
+	/*UPDATE*/
+
+	sqlText += "Update Conference ";
+	sqlText += "Set ";
+
+	char t[20] = "";
+	//_itoa_s(confId, t, 10);
+
+	sqlText += "Name = \'";  
+	for (char w : q->name) sqlText += w;
+	sqlText += "\', ";
+
+	sqlText += "Description = \'";
+	for (char w : q->description) sqlText += w;
+	sqlText += "\', ";
+
+	sqlText += "Date = \'";
+	for (char w : q->date) sqlText += w;
+	sqlText += "\', ";
+	
+	for (int i(0); i < 20; i++) t[i] = 0;
+	_itoa_s(q->themeID, t, 10);
+	sqlText += "Theme = \'";
+	for (int i(0); i<strlen(t); i++) sqlText += t[i];
+	sqlText += "\', ";
+
+	for (int i(0); i < 20; i++) t[i] = 0;
+	_itoa_s(q->cityID, t, 10);
+	sqlText += "City = \'";
+	for (int i(0); i<strlen(t); i++) sqlText += t[i];
+	sqlText += "\', ";
+
+	for (int i(0); i < 20; i++) t[i] = 0;
+	_itoa_s(q->adminID, t, 10);
+	sqlText += "Admin = \'";
+	for (int i(0); i<strlen(t); i++) sqlText += t[i];
+	sqlText += "\' ";
+
+	for (int i(0); i < 20; i++) t[i] = 0;
+	_itoa_s(q->id, t, 10);
+	sqlText += "WHERE Conference.id =  \'";
+	for (int i(0); i<strlen(t); i++) sqlText += t[i];
+	sqlText += "\'";
+
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+	ExecSQL(sqlText, DBCallbackFunc_Test);
+
+	buf.clear();
+	buf.assign(24, 0);
+	data.ActionID = action_update_conf_info_response;
+	memcpy(&buf[0], &data.Account, sizeof(__int64));
+	memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+	SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+
+	delete q;
+
+}
+
+void HandleLeaveConf(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int &PacketID, AccEnviroment &Env)
+{
+
+	int confId;
+	memcpy(&confId, &buf[20], sizeof(int));
+
+	char t[20] = "";
+	_itoa_s(confId, t, 10);
+
+	char r[20] = "";
+	_itoa_s(Env.id, r, 10);
+
+	std::string sqlText = "";
+	sqlText += "DELETE FROM Participation ";
+	sqlText += "WHERE Participation.idScientist in (SELECT Scientist.id FROM Scientist WHERE Scientist.Account = \'";
+	for (int i(0); i < strlen(r); i++) sqlText += r[i];
+	sqlText += "\') AND ";
+	sqlText += "Participation.idConference = \'";
+	for (int i(0); i < strlen(t); i++) sqlText += t[i];
+	sqlText += "\'";
+
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+
+	ExecSQL(sqlText, DBCallbackFunc_Scientist);
+
+	buf.clear();
+	buf.assign(24, 0);
+	data.ActionID = action_leave_conf_response;
+	memcpy(&buf[0], &data.Account, sizeof(__int64));
+	memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+
+	SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+}
+
+void HandleMessageList(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int &PacketID, AccEnviroment &Env)
+{
+
+	char r[20] = "";
+	_itoa_s(Env.id, r, 10);
+
+	std::string sqlText = "";
+	sqlText += "SELECT Message.Caption, Message.Dest, Message.MsgType, Message.Scr, Message.id ";
+	sqlText += "FROM Message ";
+	sqlText += "WHERE Dest = \'";
+
+	for (int i(0); i < strlen(r); i++) sqlText += r[i];
+	sqlText += "\' OR Scr = \'";
+	for (int i(0); i < strlen(r); i++) sqlText += r[i];
+	sqlText += "\'";
+		
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+		
+	ExecSQL(sqlText, DBCallbackFunc_Message);
+
+	buf.clear();
+	buf.assign(24, 0);
+	data.ActionID = action_message_list_response;
+	memcpy(&buf[0], &data.Account, sizeof(__int64));
+	memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+
+	int sz = resultBuffer.size();
+	int offset = 20;
+	addInt(buf, sz, offset);
+
+	for (int i(0); i < resultBuffer.size(); i++)
+	{
+		ContentMessage * q = static_cast<ContentMessage*>(resultBuffer[i]);
+
+		addInt(buf, q->id, offset);
+		addInt(buf, q->scr, offset);
+		addInt(buf, q->dest, offset);
+		addString(buf, q->caption, offset);
+		addInt(buf, q->MsgType, offset);
+		q->caption = "NULL";
+		addString(buf, q->caption, offset);
+		addString(buf, q->caption, offset);
+		
+		delete q;
+	}
+
+
+	SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+/*
+	for (int i(0); i < resultBuffer.size(); i++)
+	{
+		delete resultBuffer[i];
+	}
+	*/
+	resultBuffer.clear();
+}
+
+void HandleGetMessage(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int &PacketID, AccEnviroment &Env)
+{
+
+	int msgId;
+	memcpy(&msgId, &buf[20], sizeof(int));
+
+	char t[20] = "";
+	_itoa_s(msgId, t, 10);
+
+	std::string sqlText = "";
+	sqlText += "SELECT Message.Caption, Message.Dest, Message.MsgType, Message.Scr, Message.id, Message.Content, Message.Param1 ";
+	sqlText += "FROM Message ";
+	sqlText += "WHERE Message.id = \'";
+	for (int i(0); i < strlen(t); i++) sqlText += t[i];
+	sqlText += "\'";
+
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+
+	ExecSQL(sqlText, DBCallbackFunc_Message);
+
+	buf.clear();
+	buf.assign(24, 0);
+	data.ActionID = action_get_message_response;
+	memcpy(&buf[0], &data.Account, sizeof(__int64));
+	memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+
+	int sz = resultBuffer.size();
+	int offset = 20;
+	addInt(buf, sz, offset);
+
+	for (int i(0); i < resultBuffer.size(); i++)
+	{
+		ContentMessage * q = static_cast<ContentMessage*>(resultBuffer[i]);
+
+		addInt(buf, q->id, offset);
+		addInt(buf, q->scr, offset);
+		addInt(buf, q->dest, offset);
+		addString(buf, q->caption, offset);
+		addInt(buf, q->MsgType, offset);
+		q->caption = "NULL";
+		addString(buf, q->caption, offset);
+		addString(buf, q->caption, offset);
+		addString(buf, q->text, offset);
+		addInt(buf, q->param1, offset);
+		delete q;
+	}
+
+
+	SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+}
+
+void HandleSearcConf(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int &PacketID, AccEnviroment &Env)
+{
+	std::string pattern;
+	int offset = 20;
+	readString(buf, pattern, offset);
+
+	std::string sqlText = "";
+
+	sqlText += "SELECT Conference.id, Conference.Name, ";
+	sqlText += "Conference.Date, Conference.Theme, ";
+	sqlText += "Conference.City, Conference.Description, ";
+	sqlText += "Conference.Admin, City.Name as CName, ";
+	sqlText += "Theme.Name as TName ";
+	sqlText += "FROM Conference, City, Theme ";
+	sqlText += "WHERE Conference.Theme = Theme.id AND ";
+	sqlText += "Conference.City = City.id AND ";
+	sqlText += "Conference.Name like \'%";
+
+	for (char r : pattern) sqlText += r;
+
+	sqlText +="%\'";
+
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+
+	ExecSQL(sqlText, DBCallbackFunc_ConferenceFull);
+
+	buf.clear();
+	buf.assign(24, 0);
+	data.ActionID = action_search_conf_response;
+	memcpy(&buf[0], &data.Account, sizeof(__int64));
+	memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+	int sz = resultBuffer.size();
+	memcpy(&buf[20], &sz, sizeof(int));
+	offset = 24;
+	for (int i(0); i < resultBuffer.size(); i++)
+	{
+		ContentConference * q = static_cast<ContentConference*>(resultBuffer[i]);
+		addInt(buf, q->id, offset);
+		addString(buf, q->name, offset);
+		addString(buf, q->date, offset);
+		addInt(buf, q->themeID, offset);
+		addInt(buf, q->cityID, offset);
+		addString(buf, q->description, offset);
+		addInt(buf, q->adminID, offset);
+		addString(buf, q->cityName, offset);
+		addString(buf, q->themeName, offset);
+		q->id = 1;
+		addInt(buf, q->id, offset);
+		// add int
+		delete q;
+	}
+
+	resultBuffer.clear();
+
+	printf("debug: ");
+	for (int i(0); i < buf.size(); i++) printf("%c", buf[i]);
+	printf("\n");
+
+	SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+	resultBuffer.clear();
+
+}
+
+void HandleJoinConf(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int &PacketID, AccEnviroment &Env)
+{
+	char r[20] = "";
+	_itoa_s(Env.id, r, 10);
+
+	int confId;
+	memcpy(&confId, &buf[20], sizeof(int));
+
+	char t[20] = "";
+	_itoa_s(confId, t, 10);
+
+	std::string sqlText = "";
+
+	sqlText += "SELECT * FROM Participation ";
+	sqlText += "WHERE Participation.idScientist in (SELECT id FROM Scientist WHERE Scientist.Account = \'";
+	for (int i(0); i < strlen(r); i++) sqlText += r[i];
+	sqlText += "\') AND ";
+	sqlText += "Participation.idConference = \'";
+	for (int i(0); i < strlen(t); i++) sqlText += t[i];
+	sqlText += "\'";
+
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+
+	ExecSQL(sqlText, DBCallbackFunc_Partitipation);
+
+	if (!resultBuffer.empty())
+	{
+		delete resultBuffer[0];
+		buf.clear();
+		buf.assign(24, 0);
+		data.ActionID = action_error;
+		memcpy(&buf[0], &data.Account, sizeof(__int64));
+		memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+
+		SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+		return;
+	}
+	int sciID;
+	sqlText = "";
+	sqlText += "SELECT id FROM Scientist WHERE Account = \'";
+	for (int i(0); i < strlen(r); i++) sqlText += r[i];
+
+	sqlText += "\'";
+	
+	resultBuffer.clear();
+
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+
+	ExecSQL(sqlText, DBCallbackFunc_Scientist);
+
+	if (resultBuffer.empty())
+	{
+		delete resultBuffer[0];
+		buf.clear();
+		buf.assign(24, 0);
+		data.ActionID = action_error;
+		memcpy(&buf[0], &data.Account, sizeof(__int64));
+		memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+
+		SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+		return;
+	}
+	else
+	{
+		ContentScientist * q = static_cast<ContentScientist*> (resultBuffer[0]);
+		sciID = q->id;
+		delete q;
+	}
+
+	resultBuffer.clear();
+
+	char s[20] = "";
+	_itoa_s(sciID, s, 10);
+
+	sqlText = "";
+	sqlText += "INSERT INTO Participation VALUES(";
+	for (int i(0); i < strlen(s); i++) sqlText += s[i];
+	sqlText += ",";
+	for (int i(0); i < strlen(t); i++) sqlText += t[i];
+	sqlText += ")";
+
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+
+	ExecSQL(sqlText, DBCallbackFunc_Scientist);
+
+	buf.clear();
+	buf.assign(24, 0);
+	data.ActionID = action_join_conf_response;
+	memcpy(&buf[0], &data.Account, sizeof(__int64));
+	memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+
+	SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+}
+
+void HandleSendMessage(DataFormat data, SOCKET ClientSocket, std::vector<char> buf, int &PacketID, AccEnviroment &Env)
+{
+
+	int offset = 20;
+	int size;
+
+	int id;
+	int scr;
+	int dest;
+	std::string caption;
+	std::string text;
+	int msgType;
+	int param1;
+	std::string fromName;
+	std::string toName;
+
+	readInt(buf, size, offset);
+	readInt(buf, scr, offset);
+	readInt(buf, dest, offset);
+	readString(buf, caption, offset);
+	readInt(buf, msgType, offset);
+	readString(buf, fromName, offset);
+	readString(buf, toName, offset);
+
+	readString(buf, text, offset);
+	readInt(buf, param1, offset);
+
+	id = 0;
+	scr = Env.id;
+
+
+
+	std::string sql = "";
+	sql += "SELECT id FROM Account WHERE Login = \'";
+	for (char w : toName) sql += w;
+	sql += "\'";
+
+	printf("debug: ");
+	printf("%s\n", sql.c_str());
+
+	ExecSQL(sql, DBCallbackFunc_Account);
+
+	if (resultBuffer.empty())
+	{
+		buf.clear();
+		buf.assign(24, 0);
+		data.ActionID = action_error;
+		memcpy(&buf[0], &data.Account, sizeof(__int64));
+		memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+
+		SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
+		return;
+	}
+
+	ContentAccount * q = static_cast<ContentAccount*> (resultBuffer[0]);
+	dest = q->id;
+	delete q;
+
+	sql = "";
+
+	sql += "INSERT INTO Message(Scr, Dest, Caption, Content, MsgType, Param1) ";
+	sql += "VALUES(";
+		//(1, 2, 'fsdfsf', 'fsdfsdfsdf', 1, NULL)
+	std::string tmp = std::to_string(scr);
+
+	for (char w : tmp) sql += w;
+	sql += ",";
+
+	tmp = std::to_string(dest);
+	for (char w : tmp) sql += w;
+	sql += ",\'";
+
+	for (char w : caption) sql += w;
+	sql += "\',\'";
+
+	for (char w : text) sql += w;
+	sql += "\',";
+
+	tmp = std::to_string(msgType);
+	for (char w : tmp) sql += w;
+	sql += ',';
+
+	tmp = std::to_string(param1);
+	for (char w : tmp) sql += w;
+	sql += ')';
+
+	printf("debug: ");
+	printf("%s\n", sql.c_str());
+
+	ExecSQL(sql, DBCallbackFunc_Account);
+
+	buf.clear();
+	buf.assign(24, 0);
+	data.ActionID = action_send_message_response;
+	memcpy(&buf[0], &data.Account, sizeof(__int64));
+	memcpy(&buf[sizeof(__int64)], &data.ActionID, sizeof(Actions));
+
+	SendToClient(&buf[0], buf.size(), ClientSocket, PacketID);
 }

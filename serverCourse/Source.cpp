@@ -13,6 +13,7 @@
 #include "Util.h"
 #include "dbModule.h"
 
+#include "Logic.h"
 #include "Actions.h"
 #include "Handlers.h"
 #include "Network.h"
@@ -26,7 +27,7 @@
 
 
 int ClientThread(SOCKET ClientSocket);
-void HandleBuffer(std::vector<char> buf, SOCKET ClientSocket, int &PacketID);
+void HandleBuffer(std::vector<char> buf, SOCKET ClientSocket, int &PacketID, AccEnviroment &Env);
 /*
 
 int AddToQueue(std::vector<char> rBuff, std::vector<std::pair<int, std::vector<std::vector<char>>>> &bf, std::vector<std::pair<int, int>> &status);
@@ -145,7 +146,11 @@ int ClientThread(SOCKET ClientSocket)
 	int iSendResult;
 	char recvbuf[DEFAULT_BUFLEN];
 	int recvbuflen = DEFAULT_BUFLEN;
+	
 	int PacketID = 0;
+	AccEnviroment Env;
+
+
 	std::vector<std::pair<int, std::vector<std::vector<char>>>> que;
 	std::vector<std::pair<int, int>> status;
 	DWORD nonBlocking = 1;
@@ -188,7 +193,7 @@ int ClientThread(SOCKET ClientSocket)
 					std::vector<char> buff;
 					buff = BuffToRaw(que[id].second);
 
-					HandleBuffer(buff, ClientSocket, PacketID);
+					HandleBuffer(buff, ClientSocket, PacketID, Env);
 
 					
 				}
@@ -223,7 +228,7 @@ int ClientThread(SOCKET ClientSocket)
 
 
 
-void HandleBuffer(std::vector<char> buf, SOCKET ClientSocket, int &PacketID)
+void HandleBuffer(std::vector<char> buf, SOCKET ClientSocket, int &PacketID, AccEnviroment &Env)
 {
 	/* Buffer format */
 	/*
@@ -261,15 +266,43 @@ void HandleBuffer(std::vector<char> buf, SOCKET ClientSocket, int &PacketID)
 	switch (dataHeader.ActionID)
 	{
 	case action_ping:
-		HandlePing(dataHeader, ClientSocket, PacketID);
+		HandlePing(dataHeader, ClientSocket, PacketID, Env);
 		break;
 	case action_auth:
-		HandleAuth(dataHeader, ClientSocket, buf, PacketID);
+		HandleAuth(dataHeader, ClientSocket, buf, PacketID, Env);
 		break;
 	case action_conf_user:
-		HandleUserConferenceList(dataHeader, ClientSocket, PacketID);
+		HandleUserConferenceList(dataHeader, ClientSocket, PacketID, Env);
+		break;
+	case action_conf_full_info:
+		HandleConferenceFullInfo(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_get_conf_members:
+		HandleConferenceMembers(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_update_conf_info:
+		HandleUpdateConfInfo(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_leave_conf:
+		HandleLeaveConf(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_message_list:
+		HandleMessageList(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_get_message:
+		HandleGetMessage(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_search_conf:
+		HandleSearcConf(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_join_conf:
+		HandleJoinConf(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_send_message:
+		HandleSendMessage(dataHeader, ClientSocket, buf, PacketID, Env);
 		break;
 	default:
+		printf("Error! Cant handle %d action\n", &dataHeader.ActionID);
 		// no such action5
 		// error
 		break;

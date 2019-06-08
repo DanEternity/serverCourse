@@ -62,6 +62,10 @@ struct ContentConference : ContentBase
 	int adminID;
 	std::string date;
 
+	std::string cityName;
+	std::string themeName;
+
+
 	// Also parsed date
 	int year;
 	int month;
@@ -81,4 +85,15 @@ struct ContentAdmin : ContentBase
 {
 	int id;
 	int accID;
+};
+
+struct ContentMessage : ContentBase
+{
+	int id;
+	int scr;
+	int dest;
+	int MsgType;
+	std::string caption;
+	std::string text;
+	int param1;
 };

@@ -154,9 +154,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Actions.h" />
+    <ClInclude Include="BufferHelp.h" />
     <ClInclude Include="dbModule.h" />
     <ClInclude Include="dbValues.h" />
     <ClInclude Include="Handlers.h" />
+    <ClInclude Include="Logic.h" />
     <ClInclude Include="Network.h" />
     <ClInclude Include="SQLite3.h" />
     <ClInclude Include="Util.h" />

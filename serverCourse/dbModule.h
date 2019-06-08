@@ -98,7 +98,47 @@ static int callbackAccount(void *NotUsed, int argc, char **argv, char **azColNam
 	resultBuffer.push_back(static_cast<ContentBase*>(q));
 	return 0;
 }
+static int callbackMessage(void *NotUsed, int argc, char **argv, char **azColName)
+{
+	ContentMessage * q = new ContentMessage();
+	int i;
+	for (i = 0; i < argc; i++)
+	{
+		switch (azColName[i][0])
+		{
+		case 'C':
+			if (azColName[i][1] == 'a')
+				q->caption = argv[i];
+			else
+				q->text = argv[i];
+			break;
+		case 'D':
+			q->dest = std::atoi(argv[i]);
+			break;
+		case 'S':
+			q->scr = std::atoi(argv[i]);
+			break;
+		case 'M':
+			q->MsgType = std::atoi(argv[i]);
+			break;
+		case 'i':
+			q->id = std::atoi(argv[i]);
+			break;
+		case 'P':
+			if (argv[i] == NULL)
+				q->param1 = 0;
+			else
+				q->param1 = std::atoi(argv[i]);
+			break;
+		default:
+			break;
+		}
 
+	}
+
+	resultBuffer.push_back(static_cast<ContentBase*>(q));
+	return 0;
+}
 static int callbackConference(void *NotUsed, int argc, char **argv, char **azColName)
 {
 	ContentConference * q = new ContentConference();
@@ -123,12 +163,86 @@ static int callbackConference(void *NotUsed, int argc, char **argv, char **azCol
 	return 0;
 }
 
+static int callbackPartitipation(void *NotUsed, int argc, char **argv, char **azColName)
+{
+	ContentParticipation * q = new ContentParticipation();
+	int i;
+	for (i = 0; i < argc; i++)
+	{
+		switch (azColName[i][2])
+		{
+		case 'S':
+			q->ScientistID = std::atoi(argv[i]);
+			break;
+		case 'C':
+			q->ConferenceID = std::atoi(argv[i]);
+			break;
+		default:
+			break;
+		}
+
+	}
+
+	resultBuffer.push_back(static_cast<ContentBase*>(q));
+	return 0;
+}
+
+static int callbackConferenceFullInfo(void *NotUsed, int argc, char **argv, char **azColName)
+{
+	ContentConference * q = new ContentConference();
+	int i;
+	for (i = 0; i < argc; i++)
+	{
+		switch (azColName[i][0])
+		{
+		case 'N':
+			q->name = argv[i];
+			break;
+		case 'i':
+			q->id = std::atoi(argv[i]);
+			break;
+		case 'D':
+			if (azColName[i][1] == 'a')
+				q->date = argv[i];
+			else
+				q->description = argv[i];
+			break;
+		case 'C':
+			if (azColName[i][1] == 'N')
+				q->cityName = argv[i];
+			else
+				q->cityID = std::atoi(argv[i]);
+			
+			break;
+		case 'T':
+			if (azColName[i][1] == 'N')
+				q->themeName = argv[i];
+			else
+				q->themeID = std::atoi(argv[i]);
+			break;
+		case 'A':
+			q->adminID = std::atoi(argv[i]);
+			break;
+
+		default:
+			break;
+		}
+
+	}
+
+	resultBuffer.push_back(static_cast<ContentBase*>(q));
+	return 0;
+}
+
 enum DBCallbackFunc
 {
 	DBCallbackFunc_Test = 0,
-	DBCallbackFunc_Scientist,
+	DBCallbackFunc_Scientist = 1,
 	DBCallbackFunc_Account,
 	DBCallbackFunc_Conference,
+	DBCallbackFunc_ConferenceFull,
+	DBCallbackFunc_Message,
+	DBCallbackFunc_Partitipation,
 };
 
 void ExecSQL(std::string sqlString, DBCallbackFunc func)
@@ -154,6 +268,18 @@ void ExecSQL(std::string sqlString, DBCallbackFunc func)
 	case DBCallbackFunc_Conference:
 		resultBuffer.clear();
 		result = sqlite3_exec(dataBase, sqlString.c_str(), callbackConference, 0, &zErrMsg);
+		break;
+	case DBCallbackFunc_ConferenceFull:
+		resultBuffer.clear();
+		result = sqlite3_exec(dataBase, sqlString.c_str(), callbackConferenceFullInfo, 0, &zErrMsg);
+		break;
+	case DBCallbackFunc_Message:
+		resultBuffer.clear();
+		result = sqlite3_exec(dataBase, sqlString.c_str(), callbackMessage, 0, &zErrMsg);
+		break;
+	case DBCallbackFunc_Partitipation:
+		resultBuffer.clear();
+		result = sqlite3_exec(dataBase, sqlString.c_str(), callbackPartitipation, 0, &zErrMsg);
 		break;
 	default:
 		result = -1; // fail
