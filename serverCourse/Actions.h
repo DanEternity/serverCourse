@@ -34,7 +34,20 @@ enum Actions
 	action_profile_all_conferences_full_response,
 	action_scientist_info,
 	action_scientist_info_response,
-
+	action_add_conference,
+	action_add_conference_responce,
+	action_get_profile,
+	action_get_profile_response,
+	action_create_account,
+	action_create_account_response,
+	action_add_city,
+	action_add_city_response,
+	action_add_theme,
+	action_add_theme_response,
+	//action_search_conf_city,
+	//action_search_conf_city_response,
+	//action_search_conf_theme,
+	//action_search_conf_theme_response,
 };
 
 struct DataFormat

@@ -301,6 +301,24 @@ void HandleBuffer(std::vector<char> buf, SOCKET ClientSocket, int &PacketID, Acc
 	case action_send_message:
 		HandleSendMessage(dataHeader, ClientSocket, buf, PacketID, Env);
 		break;
+	case action_add_conference:
+		HandleAddConference(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_delete_conf:
+		HandleDeleteConference(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_get_profile:
+		HandleGetProfile(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_create_account:
+		HandleCreateAccount(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_add_theme:
+		HandleAddTheme(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
+	case action_add_city:
+		HandleAddCity(dataHeader, ClientSocket, buf, PacketID, Env);
+		break;
 	default:
 		printf("Error! Cant handle %d action\n", &dataHeader.ActionID);
 		// no such action5

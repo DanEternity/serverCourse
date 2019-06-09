@@ -96,4 +96,7 @@ struct ContentMessage : ContentBase
 	std::string caption;
 	std::string text;
 	int param1;
+	int status;
+	std::string scrName;
+	std::string destName;
 };
