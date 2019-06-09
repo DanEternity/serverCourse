@@ -95,7 +95,7 @@ void HandleUserConferenceList(DataFormat data, SOCKET ClientSocket, int &PacketI
 {
 
 	int id = data.Account;
-
+	int sciID = data.Account;
 	//std::string 
 	std::string sqlText;
 	if (Env.accType == 1)
@@ -103,11 +103,38 @@ void HandleUserConferenceList(DataFormat data, SOCKET ClientSocket, int &PacketI
 	else
 		sqlText = "SELECT Conference.id, Conference.Name FROM Conference, Admin WHERE Conference.Admin = Admin.id AND Admin.Account = \'";
 
+
+	if (Env.accType == 1)
+	{
+		std::string sql = "";
+		sql += "SELECT id FROM Scientist WHERE Account = \'";
+		char c[20] = "";
+		_itoa_s(id, c, 10);
+		int i = 0;
+		while (c[i] != 0) sql += c[i++];
+		sql += "\'";
+
+		printf("debug: ");
+		printf("%s\n", sql.c_str());
+
+		ExecSQL(sql, DBCallbackFunc_Scientist);
+
+		ContentScientist * q = static_cast<ContentScientist*>(resultBuffer[0]);
+
+		sciID = q->id;
+		delete q;
+	}
+
+
 	char c[20] = "";
-	_itoa_s(id, c, 10);
+	_itoa_s(sciID, c, 10);
 	int i = 0;
 	while (c[i] != 0) sqlText += c[i++];
 	sqlText += "\'";
+
+	printf("debug: ");
+	printf("%s\n", sqlText.c_str());
+
 	ExecSQL(sqlText, DBCallbackFunc_Conference);
 
 	std::vector<char> buf(30);
@@ -447,7 +474,23 @@ void HandleMessageList(DataFormat data, SOCKET ClientSocket, std::vector<char> b
 	sqlText += "\' OR Scr = \'";
 	for (int i(0); i < strlen(r); i++) sqlText += r[i];
 	sqlText += "\')AND(A1.id = Message.Scr)AND(A2.id = Message.Dest)";
-		
+	
+	if (Env.accType == 2)
+	{
+		int confId;
+		int offset = 20;
+		readInt(buf, confId, offset);
+
+		std::string id = std:: to_string(confId);
+
+		sqlText += "AND(Message.param1 = \'";
+		for (char w : id) sqlText += w;
+
+		sqlText += "\')";
+
+	}
+
+
 	printf("debug: ");
 	printf("%s\n", sqlText.c_str());
 		
