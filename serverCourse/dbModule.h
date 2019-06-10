@@ -52,13 +52,19 @@ static int callback2(void *NotUsed, int argc, char **argv, char **azColName)
 			q->accountID = std::atoi(argv[i]);
 			break;
 		case 'T':
-			q->themeID = std::atoi(argv[i]);
+			if (azColName[i][1] == 'N')
+				q->themeName = argv[i];
+			else
+				q->themeID = std::atoi(argv[i]);
 			break;
 		case 'i':
 			q->id = std::atoi(argv[i]);
 			break;
 		case 'C':
-			q->cityID = std::atoi(argv[i]);
+			if (azColName[i][1] == 'N')
+				q->cityName = argv[i];
+			else
+				q->cityID = std::atoi(argv[i]);
 			break;
 		default:
 			break;
@@ -116,7 +122,10 @@ static int callbackMessage(void *NotUsed, int argc, char **argv, char **azColNam
 			q->dest = std::atoi(argv[i]);
 			break;
 		case 'S':
-			q->scr = std::atoi(argv[i]);
+			if (azColName[i][1] == 't')
+				q->status = std::atoi(argv[i]);
+			else
+				q->scr = std::atoi(argv[i]);
 			break;
 		case 'M':
 			q->MsgType = std::atoi(argv[i]);
@@ -129,6 +138,12 @@ static int callbackMessage(void *NotUsed, int argc, char **argv, char **azColNam
 				q->param1 = 0;
 			else
 				q->param1 = std::atoi(argv[i]);
+			break;
+		case 'F':
+			q->scrName = argv[i];
+			break;
+		case 'T':
+			q->destName = argv[i];
 			break;
 		default:
 			break;
