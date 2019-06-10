@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.27703.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "serverCourse", "serverCourse\serverCourse.vcxproj", "{D5D49D5E-3BCF-4AE3-A16F-69FBCEA3082E}"
 EndProject
@@ -13,6 +13,8 @@ Global
 		my_conf|x86 = my_conf|x86
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
+		Win10x64v141|x64 = Win10x64v141|x64
+		Win10x64v141|x86 = Win10x64v141|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{D5D49D5E-3BCF-4AE3-A16F-69FBCEA3082E}.Debug|x64.ActiveCfg = Debug|x64
@@ -27,8 +29,15 @@ Global
 		{D5D49D5E-3BCF-4AE3-A16F-69FBCEA3082E}.Release|x64.Build.0 = Release|x64
 		{D5D49D5E-3BCF-4AE3-A16F-69FBCEA3082E}.Release|x86.ActiveCfg = Release|Win32
 		{D5D49D5E-3BCF-4AE3-A16F-69FBCEA3082E}.Release|x86.Build.0 = Release|Win32
+		{D5D49D5E-3BCF-4AE3-A16F-69FBCEA3082E}.Win10x64v141|x64.ActiveCfg = Win10x64v141|x64
+		{D5D49D5E-3BCF-4AE3-A16F-69FBCEA3082E}.Win10x64v141|x64.Build.0 = Win10x64v141|x64
+		{D5D49D5E-3BCF-4AE3-A16F-69FBCEA3082E}.Win10x64v141|x86.ActiveCfg = Win10x64v141|Win32
+		{D5D49D5E-3BCF-4AE3-A16F-69FBCEA3082E}.Win10x64v141|x86.Build.0 = Win10x64v141|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C9B81730-120C-4C6C-A4C9-10BB440A3A99}
 	EndGlobalSection
 EndGlobal
